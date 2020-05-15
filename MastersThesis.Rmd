@@ -1,0 +1,364 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+
+https://www.lincolninst.edu/sites/default/files/pubfiles/3607_2954_Hollander%20WP15JH1.pdf
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+##Collecting data
+
+library(rtweet)
+library(tidytext)
+library(twitteR)
+
+blm_tweets <- search_tweets(q = "#blacklivesmatter", n = 1000,
+                                      lang = "en",
+                                      include_rts = FALSE)
+
+ble_tweets <- search_tweets(q = "#blackexcellence", n = 1000,
+                                      lang = "en",
+                                      include_rts = FALSE)
+
+blum_tweets <- search_tweets(q = "#bluelivesmatter", n = 1000,
+                                      lang = "en",
+                                      include_rts = FALSE)
+
+deray_tweets <- get_timeline("deray", n = 3200,
+                             include_rts = FALSE)
+
+
+blm_final_data <- as.data.frame(blm_tweets$text)
+blm_final_data <- as.data.frame(blm_tweets$text)
+blm_final_data <- as.data.frame(blm_tweets$text)
+blm_final_data <- as.data.frame(blm_tweets$text)
+
+write.csv(final_data, "final.csv")
+write.csv(final_data, "final.csv")
+write.csv(final_data, "final.csv")
+write.csv(final_data, "final.csv")
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+
+library(dplyr)
+library(purrr)
+library(readr)
+library(tidytext)
+library(tidyr)
+library(ggplot2)
+
+f.word.count <- function(my.list) { sum(stringr::str_count(my.list, "\\S+")) }
+
+df <- data.frame(text.source = c("blm_tweets", "ble_tweets", "blum_tweets", "deray_tweets"), line.count = NA, word.count = NA)
+
+my.list <- list(blm_tweets = blm_tweets$text, ble_tweets = ble_tweets$text, blum_tweets = blum_tweets$text, deray_tweets = deray_tweets$text)
+
+
+
+df$line.count <- sapply(my.list, length)
+df$word.count <- sapply(my.list, f.word.count)
+
+# plot prep
+g.line.count <- ggplot(df, aes(x = factor(text.source), y = line.count/1e+06))
+g.line.count <- g.line.count + geom_bar(stat = "identity") +
+  labs(y = "# of lines/million", x = "text source", title = "Count of lines per Corpus") 
+# g.line.count
+g.word.count <- ggplot(df, aes(x = factor(text.source), y = word.count/1e+06))
+g.word.count <- g.word.count + geom_bar(stat = "identity") + 
+  labs(y = "# of words/million", x = "text source", title = "Count of words per Corpus")
+
+g.word.count
+g.line.count
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+# create a data frame for samples
+sample.df <- data.frame(text.source = c("blm_tweets", "ble_tweets", "blum_tweets", "deray_tweets"),
+                 line.count = NA, word.count = NA)
+# create a list of random variables
+set.seed(324)
+percent <- 0.05
+randoms <- lapply(my.list, function (x) rbinom(x, 1, percent))
+# create a new, empty list to store random selections
+sample.list <- list(blog = NA, twitter = NA, news = NA)
+# traverse each element of the original list, selecting ~x% of the sample, as
+# determined in rbinom
+for (i in 1:length(my.list)) {
+  sample.list[[i]] <- my.list[[i]][randoms[[i]] == 1]
+}
+# get counts of sample.list
+sample.df$line.count <- sapply(sample.list, length)
+sample.df$word.count <- sapply(sample.list, f.word.count)
+
+sample.df
+```
+
+Clean Data
+
+```{r}
+library(tm)
+getwd()
+profanityWordsDF <- read.csv( "Profanity.csv",sep="\n")
+colnames(profanityWordsDF) <- "words"
+profanityWordsDF
+profanityWordsVector <- as.vector(profanityWordsDF$words)
+profanityWords <- paste(profanityWordsVector,collapse = "|")
+
+
+filterProfanityWords <- function(sentences) {
+    return(sentences[!grepl(profanityWords,sentences)])
+}
+
+
+
+
+goodbletweets <- filterProfanityWords(ble_tweets$text)
+goodblmtweets <- filterProfanityWords(blm_tweets$text)
+goodblumtweets <- filterProfanityWords(blum_tweets$text)
+goodderaytweets <- filterProfanityWords(deray_tweets$text)
+
+textData <- c(goodbletweets, goodblmtweets, goodblumtweets, goodderaytweets)
+
+bleCorpus <- Corpus(VectorSource(goodbletweets))
+blumCorpus <- Corpus(VectorSource(goodblumtweets))
+blmCorpus <- Corpus(VectorSource(goodblmtweets))
+derayCorpus <- Corpus(VectorSource(goodderaytweets))
+
+textCorpus <- Corpus(VectorSource(textData))
+
+removeURL <- function(x){
+  gsub("http[[:alnum:][:punct:]]*", "", x) 
+}
+
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+
+
+removeRT <- function(textCorpus) {
+  return(gsub("RT","", textCorpus))
+}
+
+removeHashtags <- function(x) {gsub('#\\S+', '', x)}
+makeEnglish <- function(x){iconv(x, "latin1", "ASCII", sub="")}
+
+cleanCorpus <- function(myCorpus) {
+    myCorpus <- tm_map(myCorpus, removeURL)
+    myCorpus <- tm_map(myCorpus, removeHashtags)
+    myCorpus <- tm_map(myCorpus, removeNumbers)
+    myCorpus <- tm_map(myCorpus, removeRT)
+    myCorpus <- tm_map(myCorpus, tolower)
+    myCorpus <- tm_map(myCorpus, removeWords,stopwords("en"))
+    myCorpus <- tm_map(myCorpus, removePunctuation)
+    myCorpus <- tm_map(myCorpus, stripWhitespace)
+    myCorpus <- tm_map(myCorpus, toSpace, "/")
+    myCorpus <- tm_map(myCorpus, toSpace, "@")
+    myCorpus <- tm_map(myCorpus, toSpace, "\\|")
+    myCorpus <- tm_map(myCorpus, makeEnglish)
+    return(myCorpus)
+}
+
+bleCorpus <- cleanCorpus(bleCorpus)
+blumCorpus <- cleanCorpus(blumCorpus)
+blmCorpus <- cleanCorpus(blmCorpus)
+derayCorpus <- cleanCorpus(derayCorpus)
+textCorpus <- cleanCorpus(textCorpus)
+
+```
+
+Unigram pairs
+
+```{r}
+
+library(slam)
+library(tm)
+library(ggplot2)
+library(gridExtra)
+
+unigram <- function(thisCorpus) {
+    thisTDM2D <- TermDocumentMatrix(thisCorpus)
+    thisTDM1D <- rollup(thisTDM2D, 2, na.rm = TRUE, FUN = sum)
+    thisUniGramDF <- data.frame(words = thisTDM1D$dimnames$Terms, freq = thisTDM1D$v)
+    thisUniGramDFOrdered <- thisUniGramDF[order(-thisUniGramDF$freq),]
+    thisUniGramDFOrdered$words <- reorder(thisUniGramDFOrdered$words, thisUniGramDFOrdered$freq)
+    thisUniGramDFOrdered$percentage <- (thisUniGramDFOrdered$freq / sum(thisUniGramDFOrdered$freq))
+    thisUniGramDFOrdered$cumsum <- cumsum(thisUniGramDFOrdered$freq)
+    thisUniGramDFOrdered$cumpercentage <- cumsum(thisUniGramDFOrdered$percentage)
+    return(thisUniGramDFOrdered)
+}
+bleUniGramDF <- unigram(bleCorpus)
+blmUniGramDF <- unigram(blmCorpus)
+blumUniGramDF <- unigram(blumCorpus)
+derayUniGramDF <- unigram(derayCorpus)
+textUniGramDF <- unigram(textCorpus)
+#50% coverage need words:
+Coverage50 <- nrow(textUniGramDF[which(textUniGramDF$cumpercentage <= 0.5),])
+#90% coverage need words:
+Coverage90 <- nrow(textUniGramDF[which(textUniGramDF$cumpercentage <= 0.9),])
+#99% coverage need words:
+Coverage99 <- nrow(textUniGramDF[which(textUniGramDF$cumpercentage <= 0.99),])
+p1 <- plot(textUniGramDF$cumpercentage, ylab = "Coverage", xlab = "Word List", main = "Cumulative Word Frequency") + abline(h = 0.5) + abline(h = 0.9) + abline(h = 0.99)
+
+
+plotNGram <- function(thisDF, nTerms, title)
+{
+  DFforPlot <- thisDF[1:nTerms,]
+  DFforPlot$words <- reorder(DFforPlot$words, DFforPlot$freq)
+  p <- ggplot(DFforPlot, aes(x = words, y = percentage)) +
+    geom_bar(stat = "identity") +
+    ggtitle(title) +
+    coord_flip() +
+    theme(legend.position = "none")
+  return(p)
+}
+p1 <- plotNGram(bleUniGramDF, 10, "Black Excellence Top10 Unigram")
+p2 <- plotNGram(blumUniGramDF, 10, "Blue Lives Matter Top10 Unigram")
+p3 <- plotNGram(blmUniGramDF, 10, "Black Lives Matter Top10 Unigram")
+p4 <- plotNGram(derayUniGramDF, 10, "Deray McKesson Top10 Unigram")
+
+p1
+p2
+p3
+p4
+```
+
+#Bigram
+
+```{r}
+
+library(tokenizers)
+generate_nGrams <- function(thisDF, nValue){
+    thisDF <- unlist(thisDF)
+    nGramsList <- vector(mode = "character")
+    for (i in 1:length(thisDF)) {
+        this_nGramsList <- tokenize_ngrams(
+            thisDF[i], n = nValue, simplify = FALSE)
+        nGramsList <- c(nGramsList, this_nGramsList[[1]])
+    }
+    return(nGramsList)
+}
+generate_nGramsDF <- function(thisCorpus, nValue){
+    thisDF <- data.frame(text = sapply(thisCorpus, as.character), stringsAsFactors = FALSE)
+    thisNGrams <- unname(unlist(sapply(thisDF, generate_nGrams, nValue)))
+    thisGramsDF <- data.frame(table(thisNGrams))
+    thisGramsDF$percentage <- (thisGramsDF$Freq/sum(thisGramsDF$Freq))
+    thisGramsDF <- thisGramsDF[order(-thisGramsDF$Freq),]
+    colnames(thisGramsDF) <- c("words","freq","percentage")
+    return(thisGramsDF)
+}
+bleBiGramsDF <- generate_nGramsDF(bleCorpus, 2)
+blmBiGramsDF <- generate_nGramsDF(blmCorpus, 2)
+blumBiGramsDF <- generate_nGramsDF(blumCorpus, 2)
+derayBiGramsDF <- generate_nGramsDF(derayCorpus, 2)
+
+p4 <- plotNGram(bleBiGramsDF, 10, "BLE Top10 Bigram")
+p5 <- plotNGram(blmBiGramsDF, 10, "BLM Top10 Bigram")
+p6 <- plotNGram(blumBiGramsDF, 10, "Blue Lives Matter Top10 Bigram")
+p7 <- plotNGram(derayBiGramsDF, 10, "Deray McKesson Top10 Bigram")
+
+p4
+p5
+p6
+p7
+
+
+```
+
+#Trigram
+
+
+```{r}
+bleTriGramsDF <- generate_nGramsDF(bleCorpus, 3)
+blmTriGramsDF <- generate_nGramsDF(blmCorpus, 3)
+blumTriGramsDF <- generate_nGramsDF(blumCorpus, 3)
+derayTriGramsDF <- generate_nGramsDF(derayCorpus, 3)
+
+p7 <- plotNGram(bleTriGramsDF, 10, "BLE Top10 Trigram")
+p8 <- plotNGram(blmTriGramsDF, 10, "BLM Top10 Trigram")
+p9 <- plotNGram(blumTriGramsDF, 10, "BLUM Top10 Trigram")
+p10 <- plotNGram (derayTriGramsDF, 10, "Deray Top 10 Trigram")
+
+p7
+p8
+p9
+p10
+
+```
+
+#bigram graphs
+
+```{r}
+
+library(lubridate)
+library(widyr)
+library(tibble)
+library(tidyr)
+library(igraph)
+
+tweet_combined <- bind_rows(bleUniGramDF %>% 
+                      mutate(tweet = "Black_Excellence"),
+                    blmUniGramDF %>% 
+                      mutate(tweet = "Black_Lives_Matter"),
+                     blumUniGramDF %>% 
+                      mutate(tweet = "Blue_Lives_Matter"), 
+                     derayUniGramDF %>%
+                      mutate(tweet = "Deray"))
+
+tweet_combined
+
+word_pairs <- tweet_combined %>%
+  pairwise_count(words, tweet, sort = TRUE)
+
+word_pairs
+
+word_cors <- tweet_combined %>%
+  group_by(tweet) %>%
+  filter(n() >= 1) %>%
+  pairwise_cor(words, tweet, sort = TRUE)
+
+word_cors
+
+cors_graphs <- word_cors %>%
+  filter(item2 %in% c("black", "white", "police", "violence")) %>%
+  group_by(item2) %>%
+  top_n(5) %>%
+  ungroup() %>%
+  mutate(item1 = reorder(item1, correlation)) %>%
+  ggplot(aes(item1, correlation)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ item2, scales = "free") +
+  coord_flip()
+
+cors_graphs
+
+
+set.seed(2016)
+
+word_cors %>%
+  filter(correlation > .15) %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE) +
+  theme_void()
+```
+
